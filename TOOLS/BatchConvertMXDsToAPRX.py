@@ -5,6 +5,7 @@ Script documentation
                                      arcpy.GetParameterAsText()
 - Update derived parameter values using arcpy.SetParameter() or
                                         arcpy.SetParameterAsText()
+                                        arcpy.SetParameterAsText()
 """
 import arcpy
 import os
