@@ -39,8 +39,24 @@ class PortalItem():
         return md
 
 
+    def getItemExcelDictionary(self, md_text_type:str="plain")->dict:
+        item_dict = {}
+        item_dict["Item Title"] = self._ItemObj.title
+        item_dict["Service Name"] = self._ItemObj.name
+        item_dict["Service URL"] = self._ItemObj.url
+        item_dict["Item Id"] = self._ItemObj.id
+        item_dict["Item Hosted"] = self.isHosted
+        item_dict["Item Multilayer"] = self.isMultilayer
+        item_dict["Item URL"] = self.portalUrl
+        item_dict["Item Created Date"] = utility.epochToDate(self._ItemObj.created)[1]
+        item_dict["Item Modified Date"] = utility.epochToDate(self._ItemObj.modified)[1]
+        item_dict["Item description"] = meta.formatMdItem(self._ItemObj.description, "description", text_type)
+        item_dict["Item summary"] = meta.formatMdItem(self._ItemObj.snippet, "summary", text_type)
+        item_dict["Item tags"] = meta.formatMdItem(self._ItemObj.tags, "tags", text_type)
+        item_dict["Item credits"] = meta.formatMdItem(self._ItemObj.accessInformation, "accessInformation", text_type)
+        item_dict["Item accessConstraints"] = meta.formatMdItem(self._ItemObj.licenseInfo, "licenseInfo", text_type)
 
-
+        return item_dict
 
 class ServiceLayer(PortalItem):
     def __init__(self, portal_obj, layer_obj):
@@ -62,34 +78,20 @@ class ServiceLayer(PortalItem):
 
 
     def getLayerExcelDictionary(self, md_text_type:str="plain")->dict:
-        out_dict = {}
-        out_dict["Item Title"] = self._ItemObj.title
-        out_dict["Service Name"] = self._ItemObj.name
-        out_dict["Service URL"] = self._ItemObj.url
-        out_dict["Item Id"] = self._ItemObj.id
-        out_dict["Item Hosted"] = self.isHosted
-        out_dict["Item Multilayer"] = self.isMultilayer
-        out_dict["Item URL"] = self.portalUrl
-        out_dict["Item Created Date"] = utility.epochToDate(self._ItemObj.created)[1]
-        out_dict["Item Modified Date"] = utility.epochToDate(self._ItemObj.modified)[1]
-        out_dict["Item description"] = meta.formatMdItem(self._ItemObj.description, "description", text_type)
-        out_dict["Item summary"] = meta.formatMdItem(self._ItemObj.snippet, "summary", text_type)
-        out_dict["Item tags"] = meta.formatMdItem(self._ItemObj.tags, "tags", text_type)
-        out_dict["Item credits"] = meta.formatMdItem(self._ItemObj.accessInformation, "accessInformation", text_type)
-        out_dict["Item accessConstraints"] = meta.formatMdItem(self._ItemObj.licenseInfo, "licenseInfo", text_type)
-        out_dict["Layer Name"] = self.layerName
-        out_dict["Layer Id"] = self.layerId
-        out_dict["Layer Portal URL"] = self.layerName
-        out_dict["Layer Service URL"] = self._LayerObj.url
-        out_dict["Layer Spatial Reference"] = self.layerSpatialReferenceWkid
-        out_dict["Layer description"] = self.layerDescription
-        out_dict["Layer Credits"] = self.layerCredits
-        out_dict["Layer Schema Edit Date"] = utility.epochToDate(self.layerSchemaEdit)[1]
-        out_dict["Layer Data Edit Date"] = utility.epochToDate(self.layerDataEdit)[1]
-        out_dict["Layer Properties Edit Date"] = utility.epochToDate(self.layerPropertiesEdit)[1]
+        layer_dict = self.getItemExcelDictionary()
+        layer_dict["Layer Name"] = self.layerName
+        layer_dict["Layer Id"] = self.layerId
+        layer_dict["Layer Portal URL"] = self.layerName
+        layer_dict["Layer Service URL"] = self._LayerObj.url
+        layer_dict["Layer Spatial Reference"] = self.layerSpatialReferenceWkid
+        layer_dict["Layer description"] = self.layerDescription
+        layer_dict["Layer Credits"] = self.layerCredits
+        layer_dict["Layer Schema Edit Date"] = utility.epochToDate(self.layerSchemaEdit)[1]
+        layer_dict["Layer Data Edit Date"] = utility.epochToDate(self.layerDataEdit)[1]
+        layer_dict["Layer Properties Edit Date"] = utility.epochToDate(self.layerPropertiesEdit)[1]
 
 
-        return out_dict
+        return layer_dict
 
 
 
@@ -160,6 +162,10 @@ class PortalFile(PortalItem):
         super().__init__(item_obj)
 
     def getFileExcelDictionary(self):
+        file_dict = self.getItemExcelDictionary()
+
+
+        return file_dict
 
 
 
