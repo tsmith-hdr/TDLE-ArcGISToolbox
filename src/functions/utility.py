@@ -23,8 +23,8 @@ def getValueFromJSON(json_file, key):
     try:
        with open(json_file) as f:
             data = json.load(f)
-            return data[key] 
-       
+            return data[key]
+
     except Exception as e:
         logger.error(e)
         print("Error: ", e)
@@ -50,7 +50,7 @@ def valueTableToDictionary(metadata_str:str)->dict:
         md_item = metadata_vt.getValue(i, 0)
         md_value = metadata_vt.getValue(i, 1)
         out_dict[LOCAL_SERVICE_LOOKUP[md_item]] = md_value.strip()
-        
+
     return out_dict
 
 
@@ -65,7 +65,7 @@ def epochToDate(epoch):
 def zip_fgdb(input_fgdb, output_zip_dir):
     """
     Zips an ArcGIS file geodatabase folder.
-    
+
     :param input_folder: Path to the file geodatabase folder.
     :param output_zip: Path to the output zip file.
     """
@@ -94,3 +94,14 @@ def create_directory(directory_path):
         raise ValueError(f"Failed to Create Directory\n{e}")
 
     return directory_path
+
+
+
+def verify_filepath(file_path):
+    if os.path.exists(file_path):
+        logger.info(f"{file_path} Download Confirmed.")
+        return True
+    else:
+        logger.error(f"{file_path} Failed to Download!")
+        return False
+

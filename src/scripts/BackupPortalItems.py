@@ -1,7 +1,8 @@
 import os
 import sys
-import datetime 
+import datetime
 import logging
+import pandas as pd
 from pathlib import Path
 from importlib import reload
 
@@ -14,16 +15,17 @@ from src.functions import utility, email, appendix_report, arc
 from src.classes.services import PortalItem, ServiceLayer, TiledService, PortalFile
 from src.tools.backupmanagement import TOOL_AppendixReport
 from src.constants.paths import  PORTAL_URL, INTRANET_APPENDIX_H_DIR, LOG_DIR, OUTPUTS_DIR, BACKUPS_DIR
+from src.constants.values import VALID_FILE_TYPES
 #######################################################################################################################
 ## Globals
 DATETIME_STR = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 LOG_FILE = os.path.join(LOG_DIR, "Scheduled", "AppendixReports",f"AppendixH_{DATETIME_STR}_Scheduled.log")
 EXPORT_DIR = os.path.join(BACKUPS_DIR, f"PortalBackup_{DATETIME_STR}")
 #######################################################################################################################
-## Input Parameters 
+## Input Parameters
 '''
-Here is a quick rundown. The source_type parameter is what type of container is used to retrieve the items. This can either be 'folder', 'group' or 'catalog'. 
-If using Group or Folder you must use their Item Ids in the source_items list. 
+Here is a quick rundown. The source_type parameter is what type of container is used to retrieve the items. This can either be 'folder', 'group' or 'catalog'.
+If using Group or Folder you must use their Item Ids in the source_items list.
 The same for the include exclude list. These must be the Feature Services Item IDs.
 '''
 
@@ -45,7 +47,7 @@ include_exclude_list = [
     "f0cf92ae637a475bb8d86ae01e1b0e1e" ## Tunnels ROW (HDR 2025)
     ]
 
-include_records = False ## 
+include_records = False ##
 
 output_excel = os.path.join(EXPORT_DIR,"PortalBackup_{}.xlsx".format(DATETIME_STR))
 
@@ -71,11 +73,14 @@ ch.setFormatter(formatter)
 # add the handlers to the logger
 logger.addHandler(fh)
 logger.addHandler(ch)
+#######################################################################################################################
 
-if __name__ == "__main__":
-    
+
+
+def main():
+
     '''
-    Logic to determine whether the script is being run by the Task Scheduler or manually. 
+    Logic to determine whether the script is being run by the Task Scheduler or manually.
     If the script is being run manually the user will need to provide login credentials through the terminal
     If the script is being run on the scheduler than the login credentials are passed in as parameters.
     '''
@@ -84,7 +89,7 @@ if __name__ == "__main__":
         scheduled = True
         if username.lower() == "pro":
             gis_connection = GIS("Pro")
-            
+
         else:
             password = sys.argv[2]
             gis_connection = GIS(PORTAL_URL, username=username, password=password)
@@ -113,23 +118,17 @@ if __name__ == "__main__":
 
     '''
     Here is where we are creating a list of ArcGIS Item Objects that will be used in the "generateAppendixReport" Function
-    We are using folders to determine what items to look for with a parameter specifying if there is a list of feature services that should not be included. 
-    
+    We are using folders to determine what items to look for with a parameter specifying if there is a list of feature services that should not be included.
+
     '''
+    ## This will be a dictionary that holds dictionaries with the key being the Item Type and the value being a list of attribute dictionaries
+    ## This will be used to generate the Excel Report
+    df_dict = {"Failed":[]}
 
     utility.create_directory(EXPORT_DIR)
 
     if "Feature Service" in item_types:
-        FS_DIR = utility.create_directory(os.path.join(EXPORT_DIR, "FeatureService"))
-        logger.info(f"Creating Local File GDB...")
-        fs_gdb_path = os.path.join(FS_DIR, f"FeatureServiceBackup_{DATETIME_STR}.gdb")
-        logger.info(f"Backup GDB Path: {fs_gdb_path}")
-        try:
-            arcpy.management.CreateFileGDB(out_folder_path=FS_DIR, 
-                                            out_name=f"FeatureServiceBackup_{DATETIME_STR}")
-        except Exception as t:
-            logger.error(f"Failed to Create Feature Service GDB.\n{t}")
-            raise ValueError(f"Failed to Create Feature Service GDB.\n{t}")
+        arc.create_fgdb(os.path.join(EXPORT_DIR, "FeatureService"), f"FeatureServiceBackup_{DATETIME_STR}.gdb")
 
     logger.info(f"Generating Portal Item List")
     item_list = arc.generateItemList(gis_conn=gis_connection,
@@ -139,8 +138,12 @@ if __name__ == "__main__":
                                      source_list=source_items,
                                      include_exclude_list=include_exclude_list
                                      )
-    
+
     for item in item_list:
+        temp_dict = {}
+        if item.type not in df_dict:
+            df_dict[item.type] = []
+
         if item.type == "Feature Service":
             for layer in item.layers:
                 sl = ServiceLayer(item, layer)
@@ -156,12 +159,26 @@ if __name__ == "__main__":
                 [setattr(local_md, k, v) for k,v in md_dict.items()]
                 local_md.save()
 
+                df_dict[item.type].append(sl.getLayerExcelDictionary())
+
         elif item.type == "Map Service" or item.type == "Vector Tile Service":
+            directory_path = utility.create_directory(os.path.join(EXPORT_DIR, item.type.replace(" ", "")))
             ts = TiledService(item)
             ts.exportTiles()
 
-        elif item.type in 
+        elif item.type in VALID_FILE_TYPES:
             directory_path = utility.create_directory(os.path.join(EXPORT_DIR, item.type.replace(" ", "")))
-            pf = PortalFile(item, directory_path)
-            pf.downloadFile()
+            pf = PortalFile(item)
+            out_file = pf.downloadFile(directory_path)
 
+
+    with pd.ExcelWriter(output_excel, engine="openpyxl") as writer:
+        for item_type, property_list in df_dict:
+            df = pd.DataFrame(property_list)
+            df.to_excel(writer, sheet_name=item_type, index=False)
+
+
+
+
+if __name__ == "__main__":
+    main()

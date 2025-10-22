@@ -19,8 +19,8 @@ from src.constants.values import *
 
 def authenticateAgolConnection(portal_url):
     """
-    Allows the user of the standalone script enter their user credentials. This is to avoid having to store credentials. 
-    The portal url is set in the 
+    Allows the user of the standalone script enter their user credentials. This is to avoid having to store credentials.
+    The portal url is set in the
     """
     print(f"-- If using Arcgis Pro as Authentication Credentials. Input 'Pro' for username and input nothing for password and Press 'Enter' to continue.\n** You will need to be sure you are logged in to your account and correct Portal in ArcGIS Pro")
     print(f"-- Please enter 'Pro' or your Username and Password for {portal_url} --")
@@ -36,11 +36,11 @@ def authenticateAgolConnection(portal_url):
         password = getpass.getpass()
         print(f"Authenticating...")
 
-        
+
         try:
             if username.lower().strip() == "pro":
                 gis_conn = GIS("Pro")
-            else:  
+            else:
                 gis_conn = GIS(portal_url, username, password)
             if gis_conn:
                 break
@@ -49,17 +49,17 @@ def authenticateAgolConnection(portal_url):
             print(f"Failed GIS Connection: {e} Please Re-enter Credentials...")
 
 
-        
+
     return gis_conn
 
 
 def checkSource(gis_conn:GIS, source_type:str, source_item:str)->bool:
     if source_type.lower() == "folder":
         return True if gis_conn.content.folders.get(source_item) else False
-        
+
     elif source_type.lower() == "group":
         return True if gis_conn.groups.get(source_item) else False
-    
+
     elif source_type.lower() not in ["folder","group", "catalog"]:
         logger.error(f"Incorrect 'source' variable")
         raise ValueError(f"Incorrect 'source' variable. Must be 'folder', 'group', or 'content'")
@@ -70,7 +70,7 @@ def generateItemList(gis_conn:GIS, source_type:str, item_types:list, include_exc
     Input Parameters
     - gis_conn : GIS Connection Object
     - source_type : This is the place were the items are searched for. The options are;
-    ~~ "folder" : Specific Folders *These folders can only be folder that account being run 
+    ~~ "folder" : Specific Folders *These folders can only be folder that account being run
     ~~ "group" : Named Portal Groups
     ~~ "catalog" : The entire content library
     - item_types : This will be an input list of the all the item types that should be included in the portal backup.
@@ -88,8 +88,8 @@ def generateItemList(gis_conn:GIS, source_type:str, item_types:list, include_exc
         'catalog': gis_conn.content.search
     }
 
-    
-    
+
+
     if source_list:
         for source in source_list:
             logger.info(f"Source: {source}")
@@ -108,3 +108,24 @@ def generateItemList(gis_conn:GIS, source_type:str, item_types:list, include_exc
 
 
     return item_list
+
+
+
+def create_fgdb(directory_path, gdb_name):
+    logger.info(f"Creating File Geodatabase...")
+    logger.info(f"Verifying Directory...")
+
+    dir_path = utility.create_directory(directory_path)
+
+    logger.info(f"Creating Local File GDB...")
+
+    gdb_path = os.path.join(dir_path, gdb_name)#
+
+    logger.info(f"Backup GDB Path: {gdb_path}")
+
+    try:
+        arcpy.management.CreateFileGDB(out_folder_path=dir_path, out_name=gdb_name)
+
+    except Exception as t:
+        logger.error(f"Failed to Create FGDB.\n{t}")
+        raise ValueError(f"Failed to Create FGDB.\n{t}")
