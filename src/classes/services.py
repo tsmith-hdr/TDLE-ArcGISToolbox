@@ -11,7 +11,7 @@ from arcgis.gis import Item
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from src.functions import meta
+from src.functions import meta, utility, arc
 from src.constants.paths import SHP_DIR, PORTAL_ITEM_URL
 from src.constants.values import PROJECT_SPATIAL_REFERENCE
 #################################################################################################################################################################################
