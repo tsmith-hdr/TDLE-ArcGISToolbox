@@ -1,5 +1,6 @@
 import os
 import sys
+import json
 import datetime
 import logging
 import pandas as pd
@@ -9,17 +10,16 @@ from importlib import reload
 import arcpy
 from arcgis.gis import GIS
 
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0,str(Path(__file__).resolve().parents[2]))
 
-from src.functions import utility, email, appendix_report, arc
-from src.classes.services import PortalItem, ServiceLayer, TiledService, PortalFile
-from src.tools.backupmanagement import TOOL_AppendixReport
-from src.constants.paths import  PORTAL_URL, INTRANET_APPENDIX_H_DIR, LOG_DIR, OUTPUTS_DIR, BACKUPS_DIR
+from src.functions import utility, email, arc
+from src.classes.servicewrappers import PortalItem, ServiceLayer, TiledService, PortalFile
+from src.constants.paths import  PORTAL_URL, LOG_DIR, BACKUPS_DIR
 from src.constants.values import VALID_FILE_TYPES
 #######################################################################################################################
 ## Globals
 DATETIME_STR = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-LOG_FILE = os.path.join(LOG_DIR, "Scheduled", "AppendixReports",f"AppendixH_{DATETIME_STR}_Scheduled.log")
+LOG_FILE = os.path.join(LOG_DIR, "PortalBackups",f"PortalBackup_{DATETIME_STR}.log")
 EXPORT_DIR = os.path.join(BACKUPS_DIR, f"PortalBackup_{DATETIME_STR}")
 #######################################################################################################################
 ## Input Parameters
@@ -29,25 +29,51 @@ If using Group or Folder you must use their Item Ids in the source_items list.
 The same for the include exclude list. These must be the Feature Services Item IDs.
 '''
 
-source_type = 'folder' ## This can be either 'folder', 'group', or 'catalog'
+source_type = 'catalog' ## This can be either 'folder', 'group', or 'catalog'
 # The source_utems list has to be the id of either the Folder or Group that will be search source
+# source_items = [
+#     "Root Folder",
+#     "60502ef2599b4d79b06b330710d1f0dc", ## Aquisitions
+#     "b9da844e332e449ba1f90e501dec7c4c", ## Administrative
+#     "899a1056116d4972a466ca09d454e647",  ## Hazmat
+#     "3bbd6f9098e742cf95f7366ecafe79a3", ## Air Quality
+#     "21f4f8980eb6424bba13342f9b102bbe", ## Archaeology
+#     "da2fa4e32d1e4a98ad57d611d1f88863" ## Backups
+# ]
 source_items = [
-    "82b74a9180f64fb8bc62b0188c368734", ## Measures
-    "eb8c5a2fb2324889a289e7b51997e1ac"  ## Alternatives
+
 ]
 
 item_types = [
-
+    "CSV"
 ]
+# item_types = [
+#     "Feature Service",
+#     "Service Definition",
+#     "CSV",
+#     'Microsoft Excel',
+#     'Microsoft Word',
+#     "Administrative Report",
+#     "Shapefile",
+#     "File Geodatabase",
+#     'Layer Package',
+#     'Vector Tile Package',
+#     'Tile Package',
+#     'Notebook',
+#     "Desktop Style",
+#     'Map Package',
+#     'Project Package'
+#     ]
+# item_types = [
+#     "Tile Package",
+#     'Compact Tile Package'
+# ]
 
-include_exclude = "include" ## 'include', 'exclude', 'all
+include_exclude = "all" ## 'include', 'exclude', 'all
 # The Include Exclude list has to be the id of the services that will be included or excluded.
 include_exclude_list = [
-    "51b54afe34354a82925463f1fa6f3889",  ## SAFER Mitigation Measures (HDR 2025)
-    "f0cf92ae637a475bb8d86ae01e1b0e1e" ## Tunnels ROW (HDR 2025)
     ]
 
-include_records = False ##
 
 output_excel = os.path.join(EXPORT_DIR,"PortalBackup_{}.xlsx".format(DATETIME_STR))
 
@@ -58,7 +84,8 @@ email_from = "Edward.smith@hdrinc.com"
 email_to= ["Edward.smith@hdrinc.com"]
 #######################################################################################################################
 ## Logging
-logger = logging.getLogger()
+logging.getLogger("urllib3").setLevel(logging.WARNING)
+logger = logging.getLogger("main")
 logger.setLevel(logging.DEBUG)
 # create file handler which logs even debug messages
 fh = logging.FileHandler(LOG_FILE)
@@ -96,7 +123,7 @@ def main():
 
     else:
         scheduled = False
-        gis_connection = utility.authenticateAgolConnection(PORTAL_URL)
+        gis_connection = arc.authenticateAgolConnection(PORTAL_URL)
 
 
     '''
@@ -105,6 +132,7 @@ def main():
 
     ## Logging Input Parameters
     logger.info(f"GIS Connection: {gis_connection}")
+    logger.info(f"Scheduled Task: {scheduled}")
     logger.info(f"Searched Source Type: {source_type}")
     logger.info(f"Searched Source Item IDs: {source_items}")
     logger.info(f"Excel Report: {output_excel}")
@@ -123,62 +151,130 @@ def main():
     '''
     ## This will be a dictionary that holds dictionaries with the key being the Item Type and the value being a list of attribute dictionaries
     ## This will be used to generate the Excel Report
-    df_dict = {"Failed":[]}
+
+    df_dict = {
+        "Failed":[],
+        "Parameters": {
+            "Datetime": DATETIME_STR,
+            "Log File": LOG_FILE,
+            "GIS Connection": str(gis_connection),
+            "GIS Username":gis_connection.users.me.username,
+            "Local Username":os.getlogin(),
+            "Source Type": source_type,
+            "Source Items": ", ".join(source_items) if source_items else "None",
+            "Include/Exclude Flag":include_exclude,
+            "Include/Exclude List": ", ".join(include_exclude_list) if include_exclude_list else "None",
+            "Excel Path":output_excel,
+            "Export Directory": EXPORT_DIR,
+            "Email From": email_from,
+            "Email To": ", ".join(email_to) if email_to else "None"
+    }}
 
     utility.create_directory(EXPORT_DIR)
 
     if "Feature Service" in item_types:
-        arc.create_fgdb(os.path.join(EXPORT_DIR, "FeatureService"), f"FeatureServiceBackup_{DATETIME_STR}.gdb")
+        gdb_md_dict = {
+            "description": json.dumps(df_dict["Parameters"], indent=1),
+            "summary": "Portal Data Backup",
+            "tags": ["backup"],
+            "credits":"",
+            "accessConstraints":""
+        }
 
-    logger.info(f"Generating Portal Item List")
+        export_gdb = arc.create_fgdb(os.path.join(EXPORT_DIR, "FeatureService"), f"FeatureServiceBackup_{DATETIME_STR}.gdb", gdb_md_dict)
+
+    logger.info(f"Generating Portal Item List...")
+    
     item_list = arc.generateItemList(gis_conn=gis_connection,
-                                     source_type=source_type,
-                                     item_types=item_types,
-                                     include_exclude_flag=include_exclude,
-                                     source_list=source_items,
-                                     include_exclude_list=include_exclude_list
-                                     )
-
+                                        source_type=source_type,
+                                        item_types=item_types,
+                                        include_exclude_flag=include_exclude,
+                                        source_list=source_items,
+                                        include_exclude_list=include_exclude_list
+                                        )
+    logger.info(f"Item Count: {len(item_list)}")
+    logger.info("Starting the Item Iteration...")
     for item in item_list:
-        temp_dict = {}
         if item.type not in df_dict:
+            logger.debug(f"Adding {item.type} Key to df_dict.")
             df_dict[item.type] = []
-
+        logger.info(f"Item Object: {item}")
+        logger.info(f"Item Type: {item.type}")
         if item.type == "Feature Service":
-            for layer in item.layers:
-                sl = ServiceLayer(item, layer)
+            if arc.checkLayerAccessibility(item):
+                logger.info(f"Layer Count: {len(item.layers)}")
+                for layer in item.layers:
+                    logger.info(f"Layer Object: {layer}")
+                    sl = ServiceLayer(gis_connection, item, layer)
 
-                logger.info(f"Exporting Layer: {sl.layerName}")
-                exported_fc = sl.exportLayer(fs_gdb_path)
+                    logger.info(f"Exporting Layer {sl.layerName}...")
+                    exported_fc, failed_dict = sl.exportLayer(export_gdb)
+                    
+                    if failed_dict:
+                        df_dict["Failed"].append(failed_dict)
 
-                logger.info(f"Updating Local Metadata")
-                md_dict = sl.getMetadataDictionary()
+                    logger.info(f"Updating Local Metadata...")
+                    md_dict = sl.getLayerMetadataDictionary()
 
-                local_md = arcpy.metadata.Metadata(exported_fc)
-                ## Updates the newly exported feature classes metadata to the the same as the Portal Items.
-                [setattr(local_md, k, v) for k,v in md_dict.items()]
-                local_md.save()
+                    local_md = arcpy.metadata.Metadata(exported_fc)
+                    ## Updates the newly exported feature classes metadata to the the same as the Portal Items.
+                    [setattr(local_md, k, v) for k,v in md_dict.items()]
+                    local_md.save()
 
-                df_dict[item.type].append(sl.getLayerExcelDictionary())
+                    excel_dict = sl.getLayerExcelDictionary()
+                    excel_dict["Feature Class Path"] = exported_fc
+
+                    df_dict[item.type].append(excel_dict)
+            else:
+                logger.error(f"Item {item.id} Layers are not accessible.")
+                continue
 
         elif item.type == "Map Service" or item.type == "Vector Tile Service":
             directory_path = utility.create_directory(os.path.join(EXPORT_DIR, item.type.replace(" ", "")))
-            ts = TiledService(item)
+            ts = TiledService(gis_connection, item)
             ts.exportTiles()
 
         elif item.type in VALID_FILE_TYPES:
             directory_path = utility.create_directory(os.path.join(EXPORT_DIR, item.type.replace(" ", "")))
-            pf = PortalFile(item)
-            out_file = pf.downloadFile(directory_path)
+            pf = PortalFile(gis_connection, item)
+            
+            out_file, failed_dict = pf.downloadFile(directory_path)
 
+            if failed_dict:
+                df_dict["Failed"].append(failed_dict)
 
+            excel_dict = pf.getFileExcelDictionary()
+            excel_dict["File Path"] = 'outputs\{}'.format(out_file.split("\outputs\\")[1])
+            df_dict[item.type].append(excel_dict)
+
+    logger.info(f"Exporting Excel Reports...")
+    logger.debug(df_dict)
+    logger.debug(f"DF Dictionary Keys: {df_dict.keys()}")
     with pd.ExcelWriter(output_excel, engine="openpyxl") as writer:
-        for item_type, property_list in df_dict:
-            df = pd.DataFrame(property_list)
-            df.to_excel(writer, sheet_name=item_type, index=False)
+        for item_type, property_list in df_dict.items():
+            logger.info(f"Item Type: {item_type}")
+            logger.info(f"Property List: {property_list}")
+            try:
+                logger.info(f"Generating DataFrame...")
+                if type(property_list) is dict:
+                    df = pd.DataFrame.from_dict(property_list, "index", columns=["Value"])
+                    df.index.name = "Parameter"
+                    idx = True
+                    df.to_excel(writer, sheet_name=item_type, index=True)
 
+                else:
+                    df = pd.DataFrame(property_list)
+                    idx = False
 
+                df.to_excel(writer, sheet_name=item_type, index=idx)
+                logger.info(df.head())
+
+            except Exception as e:
+                logger.error(f"Failed to Generate DataFrame!!\n{e}")
+            
+            
 
 
 if __name__ == "__main__":
     main()
+

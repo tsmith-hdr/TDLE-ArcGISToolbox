@@ -20,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from src.constants.paths import OUTPUTS_DIR, LOG_DIR
 from src.functions import utility
 from src.functions import email
-from src.classes.services import ServiceLayer
+from classes.servicewrappers import ServiceLayer
 ########################################################################################################################################
 ## Environments
 arcpy.env.overwriteOutput=True
@@ -34,7 +34,7 @@ ZIP_DIR = os.path.join(OUTPUTS_DIR, "BackupServices", "zip")
 ZIPPED_FILE = os.path.join(ZIP_DIR, f"BackupServices_{DATETIME_STR}.zip")
 ########################################################################################################################################
 ## Logging
-logger = logging.getLogger(f"root.TOOL_BackupServices")
+logger = logging.getLogger(f"main.TOOL_BackupServices")
 ########################################################################################################################################
 
 
@@ -122,15 +122,6 @@ def main(gis_conn:GIS,spatial_reference:arcpy.SpatialReference, agol_folder_objs
                     logger.error(f"Failed to access Service Info\n{p}")
                     failed.append({"Layer":item_obj.title, "Action":"Access Info", "Error":p})
 
-    ## Here we are compressing the file gdb this is a lossl_objess function. We want to add this process to make sure that the archived records are unable to be editied.
-    logger.info(f"Compressing Local GDB Items...")
-    arcpy.AddMessage(f"Compressing Local GDB Items...")
-    with arcpy.EnvManager(workspace=local_gdb_path):
-        arcpy.management.CompressFileGeodatabaseData(local_gdb_path, lossless=True)
-        uncompressed = [failed.append({"Layer":f, "Action": "GDB Compression", "Error":"Failed to Compress"}) for dataset in arcpy.ListDatasets(feature_type="Feature") for f in arcpy.ListFeatureClasses(feature_dataset=dataset) if not arcpy.Describe(f).isCompressed]
-        compression_status = "Successful" if len(uncompressed) == 0 else "Not Successful"
-    logger.warning(f"Failed Compress Layers: {uncompressed}")
-    logger.info(f"Compression Status: {compression_status}")
 
 
     ## Updates the Backup File GDB Metadata with the input parameters and user info.

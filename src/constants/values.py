@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 VALID_FILE_TYPES = [
     "Service Definition",
     "CSV",
+    'Microsoft Excel',
     'Microsoft Word',
     "Administrative Report",
     "Shapefile",
@@ -20,6 +21,9 @@ VALID_FILE_TYPES = [
     'Layer Package',
     'Vector Tile Package',
     'Tile Package',
+    'Compact Tile Package',
     'Notebook',
-    "Desktop Style"
+    "Desktop Style",
+    'Map Package',
+    'Project Package'
     ]

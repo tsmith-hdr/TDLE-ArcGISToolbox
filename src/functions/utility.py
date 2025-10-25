@@ -1,7 +1,7 @@
 #######################################################################################################################################################
 ## Logging
 import logging
-logger = logging.getLogger(f"root.utility")
+logger = logging.getLogger(f"main.utility")
 #######################################################################################################################################################
 import json
 import sys
@@ -88,6 +88,7 @@ def create_directory(directory_path):
         if os.path.exists(directory_path):
             logger.warning(f"{directory_path} Already Exists.")
         else:
+            os.mkdir(directory_path)
             logger.info(f"{directory_path} Created.")
     except Exception as e:
         logger.error(e)
@@ -99,9 +100,12 @@ def create_directory(directory_path):
 
 def verify_filepath(file_path):
     if os.path.exists(file_path):
-        logger.info(f"{file_path} Download Confirmed.")
+        logger.info(f">> Download Confirmed.")
+        #logger.info(f"{file_path}")
         return True
     else:
-        logger.error(f"{file_path} Failed to Download!")
+        logger.error(f">> Download File Not Found!!")
+        #logger.error(f"{file_path} Failed to Download!")
         return False
+
 

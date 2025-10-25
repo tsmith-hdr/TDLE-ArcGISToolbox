@@ -177,3 +177,8 @@ cython_debug/
 
 ## Ignore the scratch Notebook
 Scratch.ipynb
+
+
+## Ignore everything in the backups folder. Keep the .gitKeep to make sure the folder gets pushed to github
+outputs/backups/*
+!outputs/backups/.gitkeep

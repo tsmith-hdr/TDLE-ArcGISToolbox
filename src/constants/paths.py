@@ -16,6 +16,11 @@ OUTPUTS_DIR = Path(ROOT_DIR, "outputs")
 BACKUPS_DIR = os.path.join(OUTPUTS_DIR, "backups")
 
 ## AGOL Paths
-PORTAL_URL = "https://hcfcd-safer.maps.arcgis.com/"
+PORTAL_URL = "https://arcgis.com/"
 
 PORTAL_ITEM_URL = urllib.parse.urljoin(PORTAL_URL, "home/item.html?id=")
+
+
+## Email SMTP Path
+
+SMTP_PATH = 'smtp.hdrinc.com'

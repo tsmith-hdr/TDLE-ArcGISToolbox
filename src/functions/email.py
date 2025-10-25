@@ -2,7 +2,7 @@
 #######################################################################################################################################################
 ## Logging
 import logging
-logger = logging.getLogger(f"root.email")
+logger = logging.getLogger(f"main.email")
 #######################################################################################################################################################
 import sys
 import os
@@ -12,6 +12,10 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.application import MIMEApplication
 from email.mime.text import MIMEText
+
+sys.path.insert(0,str(Path(__file__).resolve().parents[2]))
+
+from src.constants.paths import SMTP_PATH
 
 ################################################################################################################################################################
 def sendEmail(sendTo:list, sendFrom:str, subject:str, message_text:str, text_type:str, attachments:list)->str:
@@ -33,7 +37,7 @@ def sendEmail(sendTo:list, sendFrom:str, subject:str, message_text:str, text_typ
             # After the file is closed
             file['Content-Disposition'] = f'attachment; filename="{os.path.basename(attachment)}"' 
             msg.attach(file)
-        smtp = smtplib.SMTP('smtp.hdrinc.com')
+        smtp = smtplib.SMTP(SMTP_PATH)
         print(sendTo)
         smtp.sendmail(sendFrom, sendTo, msg.as_string())
         smtp.close()

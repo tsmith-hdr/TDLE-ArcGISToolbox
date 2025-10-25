@@ -1,7 +1,7 @@
 #######################################################################################################################################################
 ## Logging
 import logging
-logger = logging.getLogger(f"root.arc")
+logger = logging.getLogger(f"main.arc")
 #######################################################################################################################################################
 
 import sys
@@ -15,6 +15,7 @@ from arcgis.gis import GIS, ItemTypeEnum
 sys.path.insert(0,str(Path(__file__).resolve().parents[2]))
 
 from src.constants.values import *
+from src.functions import utility
 ################################################################################################################################################################
 
 def authenticateAgolConnection(portal_url):
@@ -90,11 +91,11 @@ def generateItemList(gis_conn:GIS, source_type:str, item_types:list, include_exc
 
 
 
-    if source_list:
+    if source_type in ["folder", "group"]:
         for source in source_list:
             logger.info(f"Source: {source}")
             if checkSource(gis_conn, source_type, source) and source_type in ['folder', 'group']:
-                content_list = search_method[source_type.lower()](source).list(item_type=ItemTypeEnum.FEATURE_SERVICE.value) if source_type.lower() == 'folder' else [c for c in search_method[source_type.lower()](source).content() if c.type == "Feature Service"]
+                content_list = search_method[source_type.lower()](source).list() if source_type.lower() == 'folder' else [c for c in search_method[source_type.lower()](source).content(max_items=5000)]
 
                 if include_exclude_flag.lower() == "include":
                     [item_list.append(i) for i in content_list if i.id in include_exclude_list and i.id not in item_id_list and i.type in item_types]
@@ -103,7 +104,7 @@ def generateItemList(gis_conn:GIS, source_type:str, item_types:list, include_exc
                 else:
                     [item_list.append(i) for i in content_list if i.id not in item_id_list and i.type in item_types]
     else:
-        [item_list.append(i.id) for i in search_method["catalog"]("", max_items=-1) if i.id not in item_id_list and i.type in item_types]
+        [item_list.append(i) for i in search_method["catalog"]("", max_items=-1) if i.type in item_types]
 
 
 
@@ -111,7 +112,7 @@ def generateItemList(gis_conn:GIS, source_type:str, item_types:list, include_exc
 
 
 
-def create_fgdb(directory_path, gdb_name):
+def create_fgdb(directory_path:Path, gdb_name:str, metadata_dict:dict=None)->Path:
     logger.info(f"Creating File Geodatabase...")
     logger.info(f"Verifying Directory...")
 
@@ -125,7 +126,43 @@ def create_fgdb(directory_path, gdb_name):
 
     try:
         arcpy.management.CreateFileGDB(out_folder_path=dir_path, out_name=gdb_name)
-
+        
     except Exception as t:
         logger.error(f"Failed to Create FGDB.\n{t}")
         raise ValueError(f"Failed to Create FGDB.\n{t}")
+    
+    try:
+        if metadata_dict:
+            md = arcpy.metadata.Metadata(gdb_path)
+            for k,v in metadata_dict.items():
+                setattr(md, k, v)
+            md.save()
+    except Exception as e:
+        logger.warning(f"File Geodatabase Metadata was not updated!\n{e}")
+    
+    return gdb_path
+
+
+def compressFgdbItems(gdb_path:Path)->list:
+    failed_list = []
+    ## Here we are compressing the file gdb this is a lossl_objess function. We want to add this process to make sure that the archived records are unable to be editied.
+    logger.info(f"Compressing File Geodatabase Items...")
+    with arcpy.EnvManager(workspace=gdb_path):
+        arcpy.management.CompressFileGeodatabaseData(gdb_path, lossless=True)
+        uncompressed = [failed_list.append({"Layer Name":f, "Error Type": "GDB Compression", "Error Message":"Failed to Compress"}) for dataset in arcpy.ListDatasets(feature_type="Feature") for f in arcpy.ListFeatureClasses(feature_dataset=dataset) if not arcpy.Describe(f).isCompressed]
+        compression_status = "Successful" if len(uncompressed) == 0 else "Not Successful"
+    logger.warning(f"Failed Compress Layers: {uncompressed}")
+    logger.info(f"Compression Status: {compression_status}")
+
+    return compression_status, failed_list
+
+
+def checkLayerAccessibility(item_obj):
+    try:
+        if item_obj.layers:
+            logger.debug(f"Feature Service Layers are accessible")
+            return True
+        
+    except Exception as e:
+        logger.error(f"Feature Service Layers are not Accessible!\n{e}")
+        return False
