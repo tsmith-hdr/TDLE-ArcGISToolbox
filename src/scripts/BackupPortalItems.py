@@ -5,7 +5,6 @@ import datetime
 import logging
 import pandas as pd
 from pathlib import Path
-from importlib import reload
 
 import arcpy
 from arcgis.gis import GIS
@@ -82,6 +81,7 @@ output_excel = os.path.join(EXPORT_DIR,"PortalBackup_{}.xlsx".format(DATETIME_ST
 email_subject = f"Portal Backup {DATETIME_STR.split('-')[0]}"
 email_from = "Edward.smith@hdrinc.com"
 email_to= ["Edward.smith@hdrinc.com"]
+email_attachments = [output_excel, LOG_FILE]
 #######################################################################################################################
 ## Logging
 logging.getLogger("urllib3").setLevel(logging.WARNING)
@@ -272,6 +272,9 @@ def main():
             except Exception as e:
                 logger.error(f"Failed to Generate DataFrame!!\n{e}")
             
+
+    if email_from:
+        email.sendEmail(email_to, email_from, email_subject, "Portal Backup Complete.", "plain", attachments=email_attachments)
             
 
 
