@@ -74,9 +74,9 @@ class PortalItem():
         item_dict["Item accessConstraints"] = meta.formatMdItem(self._ItemObj.licenseInfo, "licenseInfo", md_text_type)
 
         return item_dict
-    
 
-        
+
+
 
 class ServiceLayer(PortalItem):
     def __init__(self, gis_conn, portal_obj, layer_obj):
@@ -106,18 +106,18 @@ class ServiceLayer(PortalItem):
         return split[1] if "arcgis.com" in layer_url else split[0]
 
     def _getSR(self):
-        
+
         if hasattr(self.layerProperties, "spatialReference"):
             sr = self.layerProperties["spatialReference"]
             if hasattr(sr, "latestWkid"):
-                return self.layerProperties["spatialReference"]["latestWkid"] 
+                return self.layerProperties["spatialReference"]["latestWkid"]
             else:
                 return self.layerProperties["spatialReference"]
-            
+
         elif hasattr(self.layerProperties, "sourceSpatialReference"):
             sr = self.layerProperties["sourceSpatialReference"]
             if hasattr(sr, "latestWkid"):
-                return self.layerProperties["sourceSpatialReference"]["latestWkid"] 
+                return self.layerProperties["sourceSpatialReference"]["latestWkid"]
             else:
                 return self.layerProperties["sourceSpatialReference"]
         else:
@@ -144,7 +144,7 @@ class ServiceLayer(PortalItem):
 
     def getLayerMetadataDictionary(self, text_type:str="html")->dict:
         """
-        Generates a dictionary that 
+        Generates a dictionary that
         """
         md = {}
         md["title"] = f"Item: {self._ItemObj.title} Layer: {self.layerName}"
@@ -158,7 +158,7 @@ class ServiceLayer(PortalItem):
 
     def _formatLayerName(self, current_feature_classes:list)->str:
         """
-        Formats the Layer Name so it can be exported to a File Geodatabase. 
+        Formats the Layer Name so it can be exported to a File Geodatabase.
         This Replaces any special characters with underscores and removes any leading digits.
         Also checks for duplicate named feature classes and handles a numeric suffix.
 
@@ -184,15 +184,15 @@ class ServiceLayer(PortalItem):
 
     def exportLayer(self, out_gdb:Path)->dict:
         failed_dict = {}
-    
+
         with arcpy.EnvManager(workspace=out_gdb):
             feature_names = arcpy.ListFeatureClasses()
             logger.debug(f"Current Feature Classes:\n{feature_names}")
             logger.info
-        
+
         formatted_layer_name = self._formatLayerName(feature_names)
 
-    
+
 
         self.logger.info(f"Formatted Name: {formatted_layer_name}")
 
@@ -203,7 +203,7 @@ class ServiceLayer(PortalItem):
             with arcpy.EnvManager(preserveGlobalIds=True, maintainAttachments=True):
                 arcpy.conversion.ExportFeatures(in_features=self._LayerObj.url,
                                                 out_features=featureclass_path)
-                
+
         except Exception as f:
             self.logger.error(f"{self.layerName:30s} {self._ItemObj.id:30s}\n{f}")
             failed_dict["Item ID"] = self._ItemObj.id
@@ -223,25 +223,82 @@ class TiledService(PortalItem):
     def __init__(self, gis_conn, portal_obj):
         super().__init__(gis_conn, portal_obj)
         self._MapImageLayer = MapImageLayer(self._ItemObj.url, gis_conn)
+        self._Service = self._MapImageLayer.service
+
         self.milProperties = self._MapImageLayer.properties
-        self.milName = self.milProperties["name"]
+        self.serProperties = self._Service.properties
+        self.name = self.milProperties["name"]
         self.allowExport = self.milProperties["exportTilesAllowed"]
         self.maxExport = self.milProperties["maxExportTilesCount"]
         self.minLod = self.milProperties["minLOD"]
         self.maxLod = self.milProperties["maxLOD"]
         self.lodRange = f"{self.minLod}-{self.maxLod}"
-        self.milSpatialReference = self.milProperties["spatialReference"]
+        self.spatialReference = self.milProperties["spatialReference"]
+        self.layerCount = len(self.milProperties["layers"])
+        self.documentInfo = self.milProperties["documentInfo"]
+        self.size = serProperties["size"]
+        self.tileCount = serProperties["count"]
+        self.serviceUrl = serProperties["url"]
+        self.extent = self.extent
 
-        self.milLayerCount = len(self.milProperties["layers"])
-        self.milDocumentInfo = self.milProperties["documentInfo"]
 
-    def estimateTiles(self):
-        estimate_dict = self._MapImageLayer.estimate_export_tiles_size("levelId", self.lodRange, True)
-        return estimate_dict
-    
+    def _determineExportExtents(self)->dict:
+        extents_dict = {}
+        initial_extent = arcpy.Extent(
+            XMin=self.extent["xmin"],
+            YMin=self.extent["ymin"],
+            XMax=self.extent["xmax"],
+            YMax=self.extent["ymax"],
+            spatial_referernce=arcpy.SpatialReference(serProperties["spatialReference"]["latestWkid"])
+        )
+        initial_polygon = initial_extent.polygon
+
+
+        split_angle = self._determineSplitAngle(self)
+        number_of_splits = self._determineNumberOfSplits
+
+        split_polygons = arcpy.management.SubdividePolygon(
+            in_polygons=initial_polygon,
+            out_feature_class="memory/temp_polys",
+            method="NUMBER_OF_EQUAL_PARTS",
+            num_areas=number_of_splits,
+            split_angle=split_angle,
+            subdivision_type="STRIPS"
+        )
+
+        ## Need to Finish
+        return extents_dict
+
+
+    def _determineSplitAngle(self)->int:
+
+        return split_angle
+
+    def _determineNumberOfSplits(self)->int:
+
+        return number_of_splits
+
+
+
+
+
+
+
+
+
     def exportTiles(self, output_directory, levels):
-        tpk_path=""
+
+        temp_path = self._MapImageLayer.export_tiles(self.lodRange, "levelId", True, storage_format="tpkx")
+
+        tpkx_path=os.path.join(output_dir, f"{self.milName}.tpkx")
+
+        shutil.move(src=temp_path, dst=tpkx_path)
+
         return tpk_path
+
+
+
+
 
 class PortalFile(PortalItem):
     def __init__(self, gis_conn, item_obj):
